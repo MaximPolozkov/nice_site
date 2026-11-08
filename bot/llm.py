@@ -53,13 +53,75 @@ def serp_prices(niches: list[dict]) -> str:
     return "\n\n".join(lines)
 
 
+PRICE_RE = re.compile(r"(\d{1,3}(?:[\s\u00a0\u202f]\d{3})+|\d{4,})\s*(?:₽|руб|р\.)", re.I)
+
+
+def extract_prices(text: str) -> list[int]:
+    out = []
+    for m in PRICE_RE.finditer(text):
+        try:
+            out.append(int(re.sub(r"\D", "", m.group(1))))
+        except ValueError:
+            pass
+    return out
+
+
+def serp_price_range(phrase: str, lo: int, hi: int) -> tuple[int, int] | None:
+    """Диапазон цен по свежей выдаче Яндекса через SerpAPI (без Авито).
+
+    Берём суммы из сниппетов, отбрасываем явно чужие (в 5 раз ниже или выше каталога),
+    возвращаем 25-й и 75-й перцентили, если сумм хотя бы три.
+    """
+    try:
+        resp = requests.get("https://serpapi.com/search.json", params={
+            "engine": "yandex", "text": f"{phrase} цена под ключ -site:avito.ru",
+            "lr": 225, "api_key": config.SERPAPI_KEY}, timeout=30)
+        items = resp.json().get("organic_results", []) if resp.status_code == 200 else []
+    except (requests.RequestException, ValueError):
+        return None
+    prices = []
+    for i in items:
+        prices += extract_prices(f"{i.get('title', '')} {i.get('snippet', '')}")
+    prices = sorted(p for p in prices if lo / 5 <= p <= hi * 5)
+    if len(prices) < 3:
+        return None
+    return prices[len(prices) // 4], prices[(len(prices) * 3) // 4]
+
+
+class CatalogLLM:
+    """Режим без нейросети: ниши из каталога, цены — каталог, уточнённый через SerpAPI."""
+
+    mode = "каталог ниш (без нейросети)"
+
+    def candidates(self, n: int, month_name: str, exclude: list[str]) -> list[dict]:
+        from .catalog import as_dicts
+        return [d for d in as_dicts() if d["niche"] not in exclude]
+
+    def economics(self, niches: list[dict]) -> dict[str, dict]:
+        out = {}
+        for n in niches:
+            lo, hi = n["avg_check_min"], n["avg_check_max"]
+            e = {"avg_check_min": lo, "avg_check_max": hi, "commission_pct": n["commission_pct"],
+                 "competition": n["competition"], "confidence": 0.45,
+                 "note": "чек — типичный диапазон из каталога"}
+            found = serp_price_range(n["phrase"], lo, hi) if config.SERPAPI_KEY else None
+            if found:
+                # смешиваем каталог и выдачу пополам, чтобы один странный сниппет не перекосил оценку
+                e["avg_check_min"] = int((lo + found[0]) / 2)
+                e["avg_check_max"] = int((hi + max(found[1], found[0])) / 2)
+                e["confidence"] = 0.6
+                e["note"] = "чек — каталог, уточнённый по свежей выдаче Яндекса"
+            out[n["niche"]] = e
+        return out
+
+
 class LLM:
+    mode = "нейросеть"
+
     def __init__(self):
-        if config.LLM_PROVIDER not in ("anthropic", "openai"):
-            raise LLMError("Боту ниш нужна нейросеть: задайте в .env LLM_PROVIDER=anthropic "
-                           "или openai (сейчас — «%s»)" % (config.LLM_PROVIDER or "не задан"))
         if not config.LLM_API_KEY:
             raise LLMError("Не задан LLM_API_KEY в .env")
+        self.mode = f"нейросеть ({config.LLM_PROVIDER}, {config.LLM_MODEL})"
 
     def ask(self, prompt: str, web_search: bool = False, max_tokens: int = 4000) -> str:
         if config.LLM_PROVIDER == "anthropic":
@@ -135,6 +197,8 @@ class LLM:
 class DemoLLM:
     """Выдуманные ответы, чтобы проверить работу бота без ключей."""
 
+    mode = "демо"
+
     POOL = [
         ("Бани-бочки под ключ", "стройка", "баня бочка", "производители бань"),
         ("Навесы и козырьки из поликарбоната", "стройка", "навес из поликарбоната", "цеха металлоконструкций"),
@@ -166,5 +230,11 @@ class DemoLLM:
         return out
 
 
+def llm_configured() -> bool:
+    return config.LLM_PROVIDER in ("anthropic", "openai") and bool(config.LLM_API_KEY)
+
+
 def make_llm(demo: bool):
-    return DemoLLM() if demo else LLM()
+    if demo:
+        return DemoLLM()
+    return LLM() if llm_configured() else CatalogLLM()

@@ -27,6 +27,7 @@ class WordstatClient:
         self.token = token
         self.regions = regions or []
         self.session = requests.Session()
+        self._top: dict[str, list[tuple[str, int]]] = {}
 
     def _post(self, method: str, payload: dict) -> dict:
         if self.regions:
@@ -53,10 +54,15 @@ class WordstatClient:
     def monthly_volume(self, phrase: str) -> int:
         """Сколько запросов с этой фразой было за последние 30 дней."""
         data = self._post("/v1/topRequests", {"phrase": phrase})
+        self._top[phrase] = [(i["phrase"], int(i["count"])) for i in data.get("topRequests") or []]
         if "totalCount" in data:
             return int(data["totalCount"])
         items = data.get("topRequests") or []
         return int(items[0]["count"]) if items else 0
+
+    def related(self, phrase: str, limit: int = 3) -> list[str]:
+        """Самые частые уточнения фразы за 30 дней (без лишнего запроса — из monthly_volume)."""
+        return [p for p, _ in self._top.get(phrase, []) if p.strip().lower() != phrase.lower()][:limit]
 
     def monthly_dynamics(self, phrase: str, months: int = 25) -> list[tuple[str, int]]:
         """Число запросов по месяцам за последние ~2 года: [(YYYY-MM, count), ...]."""
@@ -76,6 +82,9 @@ class WordstatClient:
 
 class DemoWordstat:
     """Правдоподобные выдуманные данные для пробного запуска без ключей."""
+
+    def related(self, phrase: str, limit: int = 3) -> list[str]:
+        return [f"{phrase} цена", f"{phrase} под ключ", f"{phrase} отзывы"][:limit]
 
     def monthly_volume(self, phrase: str) -> int:
         rnd = random.Random(phrase)

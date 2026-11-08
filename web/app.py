@@ -16,6 +16,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from bot import config, engine, scheduling, storage
 from bot.engine import COMPETITION_RU, num, rub
+from bot.llm import llm_configured
 
 log = logging.getLogger("web")
 
@@ -164,8 +165,9 @@ def healthz():
 def key_status() -> list[tuple[str, bool, str]]:
     return [
         ("Вордстат", bool(config.WORDSTAT_TOKEN), "WORDSTAT_TOKEN"),
-        (f"Нейросеть ({config.LLM_PROVIDER})",
-         bool(config.LLM_API_KEY) and config.LLM_PROVIDER in ("anthropic", "openai"), "LLM_PROVIDER, LLM_API_KEY"),
+        ((f"Нейросеть ({config.LLM_PROVIDER})" if llm_configured()
+          else "Нейросеть — не подключена, работает каталог ниш"),
+         llm_configured(), "необязательно: LLM_PROVIDER, LLM_API_KEY"),
         ("Поиск цен: SerpAPI", bool(config.SERPAPI_KEY), "SERPAPI_KEY (необязательно)"),
         ("VK: отчёт админам", bool(config.VK_GROUP_TOKEN and config.VK_ADMIN_PEER_IDS),
          "VK_GROUP_TOKEN, VK_ADMIN_PEER_IDS"),

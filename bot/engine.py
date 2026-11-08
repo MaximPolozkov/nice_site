@@ -83,6 +83,7 @@ def run(trigger: str = "manual", publish: bool = True, demo: bool | None = None)
     try:
         say("Демо-режим: данные выдуманные" if demo else "Боевой режим")
         ws, ai = make_client(demo), make_llm(demo)
+        say(f"Подбор ниш: {getattr(ai, 'mode', '—')}")
         month = dt.date.today().month
         exclude = storage.recently_published(con, config.REPEAT_COOLDOWN_WEEKS)
 
@@ -108,6 +109,10 @@ def run(trigger: str = "manual", publish: bool = True, demo: bool | None = None)
             except Exception as ex:
                 say(f"Вордстат, «{c['phrase']}»: {ex}")
                 continue
+            note = e.get("note", "")
+            related = ws.related(c["phrase"])
+            if related:
+                note = (note + "; " if note else "") + "часто ищут: " + ", ".join(related)
             results.append(score(NicheScore(
                 niche=c["niche"], category=c.get("category", ""), phrase=c["phrase"],
                 who_pays=c.get("who_pays", ""), volume=volume, yoy_pct=yoy,
@@ -115,7 +120,7 @@ def run(trigger: str = "manual", publish: bool = True, demo: bool | None = None)
                 check_min=int(e.get("avg_check_min") or 0), check_max=int(e.get("avg_check_max") or 0),
                 commission_pct=float(e.get("commission_pct") or config.DEFAULT_COMMISSION_PCT),
                 competition=max(1, min(5, int(e.get("competition") or 3))),
-                confidence=float(e.get("confidence") or 0.5), note=e.get("note", ""))))
+                confidence=float(e.get("confidence") or 0.5), note=note)))
 
         if not results:
             raise RuntimeError("Ни одна ниша не оценена — смотрите сообщения выше")

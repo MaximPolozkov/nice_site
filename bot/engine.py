@@ -98,6 +98,7 @@ def run(trigger: str = "manual", publish: bool = True, demo: bool | None = None)
             econ.update(ai.economics(cands[i:i + 10]))
 
         results: list[NicheScore] = []
+        ws_fail = 0
         for c in cands:
             e = econ.get(c["niche"])
             if not e:
@@ -108,6 +109,9 @@ def run(trigger: str = "manual", publish: bool = True, demo: bool | None = None)
                 yoy, peaks, to_peak = analyze_dynamics(ws.monthly_dynamics(c["phrase"]), month)
             except Exception as ex:
                 say(f"Вордстат, «{c['phrase']}»: {ex}")
+                ws_fail += 1
+                if ws_fail >= 3 and not results:   # три ошибки подряд с начала — дальше смысла нет
+                    raise RuntimeError(f"Вордстат недоступен, прогон остановлен. Причина: {ex}") from ex
                 continue
             note = e.get("note", "")
             related = ws.related(c["phrase"])

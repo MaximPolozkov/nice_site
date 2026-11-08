@@ -73,9 +73,9 @@ if [ ${#PW} -lt 10 ] || [[ "$PW" == change-me* ]]; then
   set_var ADMIN_PASSWORD "$PW"
   echo "   пароль панели: $PW   (сохраните его; он записан в .env)"
 fi
-if [ -z "$(get_var WORDSTAT_TOKEN)" ] && [ -z "$(get_var DEMO_MODE)" ]; then
+if [ -z "$(get_var WORDSTAT_API_KEY)$(get_var WORDSTAT_TOKEN)" ] && [ -z "$(get_var DEMO_MODE)" ]; then
   set_var DEMO_MODE 1
-  warn "WORDSTAT_TOKEN не задан — включён демо-режим. Получите токен, впишите его и поставьте DEMO_MODE=0"
+  warn "Вордстат не настроен — включён демо-режим. Впишите WORDSTAT_API_KEY и WORDSTAT_FOLDER_ID и поставьте DEMO_MODE=0"
 fi
 chmod 600 .env
 

@@ -1,7 +1,11 @@
-"""Клиент официального API Яндекс Вордстата.
+"""Клиент API Яндекс Вордстата.
 
-Документация: https://yandex.ru/support2/wordstat/ru/content/api-structure
-Методы: /v1/topRequests (частота за 30 дней), /v1/dynamics (динамика по месяцам).
+Два варианта доступа:
+- Yandex Cloud (основной с 2026 года): https://searchapi.api.cloud.yandex.net/v2/wordstat
+  ключ сервисного аккаунта (Api-Key) + ID каталога. Нужна роль search-api.webSearch.user.
+- старый api.wordstat.yandex.net с OAuth-токеном — оставлен для совместимости.
+
+Методы: topRequests (частота за 30 дней), dynamics (динамика по месяцам).
 """
 from __future__ import annotations
 
@@ -13,51 +17,72 @@ import requests
 
 from . import config
 
-BASE_URL = "https://api.wordstat.yandex.net"
+CLOUD_URL = "https://searchapi.api.cloud.yandex.net/v2/wordstat"
+LEGACY_URL = "https://api.wordstat.yandex.net/v1"
 
 
 class WordstatError(RuntimeError):
     pass
 
 
+def _month_range(months: int) -> tuple[dt.date, dt.date]:
+    """Первый день месяца months назад и последний день прошлого месяца."""
+    last_month_end = dt.date.today().replace(day=1) - dt.timedelta(days=1)
+    start = last_month_end.replace(day=1)
+    for _ in range(months - 1):
+        start = (start - dt.timedelta(days=1)).replace(day=1)
+    return start, last_month_end
+
+
 class WordstatClient:
-    def __init__(self, token: str, regions: list[int] | None = None):
-        if not token:
-            raise WordstatError("Не задан WORDSTAT_TOKEN в .env")
-        self.token = token
+    def __init__(self, regions: list[int] | None = None):
+        self.cloud = bool(config.WORDSTAT_API_KEY and config.WORDSTAT_FOLDER_ID)
+        if not self.cloud and not config.WORDSTAT_TOKEN:
+            raise WordstatError("Вордстат не настроен: задайте в .env WORDSTAT_API_KEY и WORDSTAT_FOLDER_ID "
+                                "(Yandex Cloud)")
         self.regions = regions or []
         self.session = requests.Session()
         self._top: dict[str, list[tuple[str, int]]] = {}
 
     def _post(self, method: str, payload: dict) -> dict:
-        if self.regions:
-            payload["regions"] = self.regions
+        if self.cloud:
+            url = f"{CLOUD_URL}/{method}"
+            payload["folderId"] = config.WORDSTAT_FOLDER_ID
+            if self.regions:
+                payload["regions"] = [str(r) for r in self.regions]
+            headers = {"Authorization": f"Api-Key {config.WORDSTAT_API_KEY}"}
+        else:
+            url = f"{LEGACY_URL}/{method}"
+            if self.regions:
+                payload["regions"] = self.regions
+            headers = {"Authorization": f"Bearer {config.WORDSTAT_TOKEN}"}
+        headers["Content-Type"] = "application/json;charset=utf-8"
         for attempt in range(4):
-            resp = self.session.post(
-                f"{BASE_URL}{method}",
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {self.token}",
-                    "Content-Type": "application/json;charset=utf-8",
-                },
-                timeout=30,
-            )
+            try:
+                resp = self.session.post(url, json=payload, headers=headers, timeout=30)
+            except requests.exceptions.SSLError as e:
+                raise WordstatError(f"ошибка SSL при обращении к {url.split('/')[2]} — {e.__class__.__name__}") from e
+            except requests.RequestException as e:
+                raise WordstatError(f"нет связи с {url.split('/')[2]}: {e.__class__.__name__}") from e
             if resp.status_code == 429:          # превышен секундный лимит
                 time.sleep(2 ** attempt)
                 continue
+            if resp.status_code in (401, 403):
+                raise WordstatError(f"доступ запрещён (HTTP {resp.status_code}): проверьте ключ, ID каталога "
+                                    f"и роль search-api.webSearch.user — {resp.text[:200]}")
             if resp.status_code != 200:
                 raise WordstatError(f"{method}: HTTP {resp.status_code} {resp.text[:300]}")
-            time.sleep(0.4)                       # бережём секундную квоту
+            time.sleep(0.25)                      # бережём секундную квоту
             return resp.json()
         raise WordstatError(f"{method}: лимит запросов, попробуйте позже")
 
     def monthly_volume(self, phrase: str) -> int:
         """Сколько запросов с этой фразой было за последние 30 дней."""
-        data = self._post("/v1/topRequests", {"phrase": phrase})
-        self._top[phrase] = [(i["phrase"], int(i["count"])) for i in data.get("topRequests") or []]
-        if "totalCount" in data:
+        data = self._post("topRequests", {"phrase": phrase})
+        items = data.get("results") or data.get("topRequests") or []
+        self._top[phrase] = [(i["phrase"], int(i["count"])) for i in items]
+        if data.get("totalCount") not in (None, ""):
             return int(data["totalCount"])
-        items = data.get("topRequests") or []
         return int(items[0]["count"]) if items else 0
 
     def related(self, phrase: str, limit: int = 3) -> list[str]:
@@ -66,18 +91,16 @@ class WordstatClient:
 
     def monthly_dynamics(self, phrase: str, months: int = 25) -> list[tuple[str, int]]:
         """Число запросов по месяцам за последние ~2 года: [(YYYY-MM, count), ...]."""
-        today = dt.date.today()
-        last_month_end = today.replace(day=1) - dt.timedelta(days=1)
-        start = last_month_end.replace(day=1)
-        for _ in range(months - 1):
-            start = (start - dt.timedelta(days=1)).replace(day=1)
-        data = self._post("/v1/dynamics", {
-            "phrase": phrase,
-            "period": "monthly",
-            "fromDate": start.isoformat(),
-            "toDate": last_month_end.isoformat(),
-        })
-        return [(row["date"][:7], int(row["count"])) for row in data.get("dynamics", [])]
+        start, end = _month_range(months)
+        if self.cloud:
+            payload = {"phrase": phrase, "period": "PERIOD_MONTHLY",
+                       "fromDate": f"{start.isoformat()}T00:00:00Z", "toDate": f"{end.isoformat()}T00:00:00Z"}
+        else:
+            payload = {"phrase": phrase, "period": "monthly",
+                       "fromDate": start.isoformat(), "toDate": end.isoformat()}
+        data = self._post("dynamics", payload)
+        rows = data.get("results") or data.get("dynamics") or []
+        return sorted((row["date"][:7], int(row["count"])) for row in rows)
 
 
 class DemoWordstat:
@@ -109,4 +132,4 @@ class DemoWordstat:
 
 
 def make_client(demo: bool):
-    return DemoWordstat() if demo else WordstatClient(config.WORDSTAT_TOKEN, config.WORDSTAT_REGIONS)
+    return DemoWordstat() if demo else WordstatClient(config.WORDSTAT_REGIONS)

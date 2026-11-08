@@ -164,7 +164,9 @@ def healthz():
 # --- панель ---
 def key_status() -> list[tuple[str, bool, str]]:
     return [
-        ("Вордстат", bool(config.WORDSTAT_TOKEN), "WORDSTAT_TOKEN"),
+        ("Вордстат" + (" (Yandex Cloud)" if config.WORDSTAT_API_KEY and config.WORDSTAT_FOLDER_ID
+                        else " (старый API)" if config.WORDSTAT_TOKEN else ""),
+         config.WORDSTAT_CONFIGURED, "WORDSTAT_API_KEY, WORDSTAT_FOLDER_ID"),
         ((f"Нейросеть ({config.LLM_PROVIDER})" if llm_configured()
           else "Нейросеть — не подключена, работает каталог ниш"),
          llm_configured(), "необязательно: LLM_PROVIDER, LLM_API_KEY"),

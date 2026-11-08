@@ -83,10 +83,10 @@ sudo bash deploy/install.sh /путь/к/kodeverks/.env
 
 ### 4. Вордстат и боевой режим
 
-Токена Вордстата в старом `.env` нет, поэтому сайт стартует в **демо-режиме**: бот работает на выдуманных данных, а на главной висит пометка «пример». Когда Яндекс одобрит заявку на API Вордстата:
+Ключа Вордстата в старом `.env` нет, поэтому сайт стартует в **демо-режиме**: бот работает на выдуманных данных, а на главной висит пометка «пример». API Вордстата теперь работает через Yandex Cloud. Создайте в консоли Yandex Cloud сервисный аккаунт, дайте ему на каталог роль `search-api.webSearch.user`, выпустите для него API-ключ и впишите:
 
 ```bash
-nano .env          # WORDSTAT_TOKEN=..., DEMO_MODE=0
+nano .env          # WORDSTAT_API_KEY=..., WORDSTAT_FOLDER_ID=b1g..., DEMO_MODE=0
 docker compose up -d
 ```
 
@@ -100,7 +100,7 @@ docker compose up -d
 
 | Что | Где взять | Переменные |
 |---|---|---|
-| Вордстат | Заявка на доступ к API Вордстата в Яндексе, после одобрения — OAuth-токен | `WORDSTAT_TOKEN` |
+| Вордстат | Yandex Cloud: сервисный аккаунт с ролью `search-api.webSearch.user` на каталог → API-ключ; ID каталога из консоли. Около 20 ₽ за 1000 запросов, один прогон ≈ 150 запросов | `WORDSTAT_API_KEY`, `WORDSTAT_FOLDER_ID` |
 | Нейросеть (необязательно) | Ключ Claude API на platform.claude.com/settings/keys (ключ привяжите к workspace) или YandexGPT (пример в `.env.example`). Без ключа работает каталог ниш | `LLM_API_KEY`, `LLM_PROVIDER`, `LLM_MODEL` |
 | SerpAPI (необязательно) | serpapi.com — уточняет цены по выдаче Яндекса | `SERPAPI_KEY` |
 | VK, отчёт в личку | Сообщество → Управление → Работа с API → ключ с правом «Сообщения». Ваш VK ID. Напишите сообществу любое сообщение | `VK_GROUP_TOKEN`, `VK_ADMIN_PEER_IDS` |

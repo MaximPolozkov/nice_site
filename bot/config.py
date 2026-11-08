@@ -48,8 +48,13 @@ def _ids(raw: str) -> list[int]:
     return [int(x) for x in raw.replace(" ", "").split(",") if x.lstrip("-").isdigit()]
 
 
-# --- Яндекс Вордстат API (https://api.wordstat.yandex.net) ---
-WORDSTAT_TOKEN = env("WORDSTAT_TOKEN")          # OAuth-токен после одобрения заявки
+# --- Яндекс Вордстат API ---
+# Yandex Cloud: API-ключ сервисного аккаунта с ролью search-api.webSearch.user и ID каталога
+WORDSTAT_API_KEY = env("WORDSTAT_API_KEY", "", "YC_API_KEY")
+WORDSTAT_FOLDER_ID = env("WORDSTAT_FOLDER_ID", "", "YC_FOLDER_ID")
+# Старый доступ api.wordstat.yandex.net по OAuth-токену (если ещё работает)
+WORDSTAT_TOKEN = env("WORDSTAT_TOKEN")
+WORDSTAT_CONFIGURED = bool((WORDSTAT_API_KEY and WORDSTAT_FOLDER_ID) or WORDSTAT_TOKEN)
 WORDSTAT_REGIONS = _ids(env("WORDSTAT_REGIONS"))
 # Пустой список = вся Россия (все регионы).
 

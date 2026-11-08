@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Ошибка {{ error.code }}{% endblock %}
+{% block content %}
+<section class="card empty">
+  <h1>{{ 'Страница не найдена' if error.code == 404 else 'Не получилось' }}</h1>
+  <p class="muted">{{ error.description if error.code != 404 else 'Такой страницы нет.' }}</p>
+  <p><a class="btn" href="{{ url_for('index') }}">На главную</a></p>
+</section>
+{% endblock %}

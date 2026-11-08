@@ -1,0 +1,65 @@
+{% extends "admin_base.html" %}
+{% block title %}Запуск #{{ run.id }} — {{ config.SITE_TITLE }}{% endblock %}
+{% block content %}
+<section class="hero hero-sm">
+  <p class="eyebrow"><a href="{{ url_for('dashboard') }}">← Запуски</a></p>
+  <h1>Запуск #{{ run.id }}
+    <span class="pill pill-{{ run.status }}">{{ {'ok': 'готово', 'error': 'ошибка', 'running': 'работает'}[run.status] }}</span>
+  </h1>
+  <p class="muted">{{ run.started|dtru }} · {{ 'по расписанию' if run.trigger == 'schedule' else 'вручную' }}{% if run.demo %} · демо-данные{% endif %}</p>
+</section>
+
+{% if items %}
+<section class="card">
+  <h2>Все оценённые ниши</h2>
+  <p class="muted small">Флажок «на сайте» управляет публичной страницей. Столбцы факторов — баллы 0–10.</p>
+  <div class="table-wrap">
+  <table class="niches">
+    <thead><tr>
+      <th>Ниша</th><th>Балл</th><th>Спрос/мес</th><th>Рост</th><th>Комиссия за сделку</th>
+      <th title="комиссия">Ком.</th><th title="спрос">Спр.</th><th title="тренд">Тр.</th><th title="сезон">Сез.</th><th title="конкуренция">Конк.</th>
+      <th>На сайте</th>
+    </tr></thead>
+    <tbody>
+    {% for n in items %}{% set p = n.parts|parts %}
+      <tr class="{{ 'is-top' if n.in_top }}">
+        <td><b>{{ n.niche }}</b>{% if n.in_top %} <span class="tag">топ</span>{% endif %}
+          <div class="muted small">«{{ n.phrase }}» · {{ n.season }}{% if n.note %} · {{ n.note }}{% endif %}</div></td>
+        <td><b>{{ n.score }}</b></td>
+        <td>{{ num(n.volume) }}</td>
+        <td>{% if n.yoy_pct is none %}—{% else %}<span class="{{ 'up' if n.yoy_pct >= 0 else 'down' }}">{{ '%+.0f'|format(n.yoy_pct) }}%</span>{% endif %}</td>
+        <td class="nowrap">{{ rub(n.check_min * n.commission_pct / 100) }} – {{ rub(n.check_max * n.commission_pct / 100) }}</td>
+        {% for k in ['commission', 'demand', 'trend', 'season', 'competition'] %}
+          <td><span class="bar" style="--v: {{ p.get(k, 0) }}">{{ p.get(k, '—') }}</span></td>
+        {% endfor %}
+        <td>
+          <form method="post" action="{{ url_for('toggle', fid=n.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+            <button class="toggle {{ 'on' if n.public }}" aria-pressed="{{ 'true' if n.public else 'false' }}">{{ 'да' if n.public else 'нет' }}</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="two-col">
+  {% if run.post_text %}
+  <div class="card">
+    <h2>Текст отчёта</h2>
+    <pre class="post">{{ run.post_text }}</pre>
+    <form method="post" action="{{ url_for('republish', run_id=run.id) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <button class="btn btn-ghost">{{ 'Отправить в VK ещё раз' if run.published else 'Отправить в VK' }}</button>
+    </form>
+  </div>
+  {% endif %}
+  <div class="card">
+    <h2>Журнал</h2>
+    <pre class="log">{{ run.log or '—' }}</pre>
+  </div>
+</section>
+{% endblock %}

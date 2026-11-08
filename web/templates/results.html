@@ -1,0 +1,65 @@
+{% extends "admin_base.html" %}
+{% block title %}Результаты — {{ config.SITE_TITLE }}{% endblock %}
+{% block content %}
+<section class="hero hero-sm">
+  <h1>Прогноз против факта</h1>
+  <p class="muted">Записывайте заявки, сделки и полученную комиссию — так видно, какие ниши бот угадал.</p>
+</section>
+
+<section class="two-col two-col-wide">
+  <div class="card">
+    <h2>Ниши</h2>
+    {% if rows %}
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Ниша</th><th>Лучший балл</th><th>Заявки</th><th>Сделки</th><th>Комиссия</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr><td>{{ r.niche }}</td><td>{{ r.best_score if r.best_score is not none else '—' }}</td>
+            <td>{{ r.leads }}</td><td>{{ r.deals }}</td><td class="nowrap">{{ rub(r.commission, true) }}</td></tr>
+      {% endfor %}
+      </tbody>
+      <tfoot><tr><td>Итого</td><td></td><td>{{ totals.leads }}</td><td>{{ totals.deals }}</td><td class="nowrap">{{ rub(totals.commission, true) }}</td></tr></tfoot>
+    </table>
+    </div>
+    {% else %}<p class="muted">Пока пусто.</p>{% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Добавить результат</h2>
+    <form method="post" action="{{ url_for('add_outcome') }}" class="stack">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <label>Ниша
+        <input name="niche" list="niches" required maxlength="200" placeholder="Начните вводить">
+        <datalist id="niches">{% for n in niches %}<option value="{{ n }}">{% endfor %}</datalist>
+      </label>
+      <div class="row3">
+        <label>Заявки <input name="leads" type="number" min="0" value="0"></label>
+        <label>Сделки <input name="deals" type="number" min="0" value="0"></label>
+        <label>Комиссия, ₽ <input name="commission" type="number" min="0" step="100" value="0"></label>
+      </div>
+      <label>Комментарий <input name="comment" maxlength="500" placeholder="Необязательно"></label>
+      <button class="btn">Записать</button>
+    </form>
+  </div>
+</section>
+
+{% if outcomes %}
+<section class="card">
+  <h2>Записи</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Дата</th><th>Ниша</th><th>Заявки</th><th>Сделки</th><th>Комиссия</th><th>Комментарий</th><th></th></tr></thead>
+    <tbody>
+    {% for o in outcomes %}
+      <tr><td class="nowrap">{{ o.date|dtru }}</td><td>{{ o.niche }}</td><td>{{ o.leads }}</td><td>{{ o.deals }}</td>
+        <td class="nowrap">{{ rub(o.commission_rub, true) }}</td><td class="muted">{{ o.comment }}</td>
+        <td><form method="post" action="{{ url_for('delete_outcome', oid=o.id) }}" onsubmit="return confirm('Удалить запись?')">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="linklike danger">удалить</button></form></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

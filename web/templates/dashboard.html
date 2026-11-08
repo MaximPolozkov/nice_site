@@ -1,0 +1,83 @@
+{% extends "admin_base.html" %}
+{% block title %}Панель — {{ config.SITE_TITLE }}{% endblock %}
+{% block content %}
+<section class="hero hero-sm">
+  <h1>Панель бота</h1>
+</section>
+
+<section class="stats">
+  <div class="card stat">
+    <span class="label">Статус</span>
+    {% if running %}<strong class="status status-run">Работает…</strong>
+    {% elif pending %}<strong class="status status-run">В очереди</strong>
+    {% else %}<strong class="status">Ожидает</strong>{% endif %}
+    {% if running or pending %}<a class="muted small" href="{{ url_for('dashboard') }}">обновить</a>{% endif %}
+  </div>
+  <div class="card stat">
+    <span class="label">Следующий запуск</span>
+    <strong>{{ next_run.strftime('%d.%m %H:%M') if next_run else '—' }}</strong>
+    <span class="muted small">{{ schedule }}</span>
+  </div>
+  <div class="card stat">
+    <span class="label">Сделок / заявок</span>
+    <strong>{{ totals.deals }} / {{ totals.leads }}</strong>
+  </div>
+  <div class="card stat">
+    <span class="label">Комиссия получена</span>
+    <strong>{{ rub(totals.commission, true) }}</strong>
+  </div>
+</section>
+
+<section class="two-col">
+  <div class="card">
+    <h2>Запустить сейчас</h2>
+    <form method="post" action="{{ url_for('start_run') }}" class="run-form">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <label class="check"><input type="checkbox" name="publish" value="1" checked> Отправить отчёт в VK</label>
+      <button class="btn" {% if running or pending %}disabled{% endif %}>Найти ниши</button>
+    </form>
+    <p class="muted small">Прогон занимает несколько минут. Ниши из топа сразу появятся на публичной странице — это можно отменить на странице запуска.</p>
+  </div>
+  <div class="card">
+    <h2>Подключения</h2>
+    <ul class="keys">
+      {% for name, ok, var in keys %}
+        <li><span class="dot {{ 'dot-ok' if ok else 'dot-off' }}"></span>{{ name }}
+          {% if not ok %}<code class="small">{{ var }}</code>{% endif %}</li>
+      {% endfor %}
+    </ul>
+    <p class="muted small">Режим публикации: <code>{{ config.PUBLISH_MODE }}</code>. Ключи задаются в файле <code>.env</code> на сервере.</p>
+    {% if config.DEMO_MODE %}
+      <p class="small"><b>Демо-режим:</b> бот работает на выдуманных данных. Когда ключи будут готовы, поставьте в <code>.env</code> <code>DEMO_MODE=0</code>.</p>
+    {% elif has_demo %}
+      <form method="post" action="{{ url_for('delete_demo') }}" onsubmit="return confirm('Удалить все демо-запуски?')">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <button class="linklike danger">Удалить демо-запуски</button>
+      </form>
+    {% endif %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Последние запуски</h2>
+  {% if runs %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>#</th><th>Начало</th><th>Как</th><th>Статус</th><th>VK</th><th></th></tr></thead>
+    <tbody>
+    {% for r in runs %}
+      <tr>
+        <td>{{ r.id }}</td>
+        <td>{{ r.started|dtru }}</td>
+        <td>{{ 'по расписанию' if r.trigger == 'schedule' else 'вручную' }}{% if r.demo %} · демо{% endif %}</td>
+        <td><span class="pill pill-{{ r.status }}">{{ {'ok': 'готово', 'error': 'ошибка', 'running': 'работает'}[r.status] }}</span></td>
+        <td>{{ '✓' if r.published else '—' }}</td>
+        <td><a href="{{ url_for('run_detail', run_id=r.id) }}">открыть</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="muted">Запусков ещё не было. Нажмите «Найти ниши».</p>{% endif %}
+</section>
+{% endblock %}

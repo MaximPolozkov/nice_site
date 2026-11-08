@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block body_class %}admin{% endblock %}
+{% block nav %}
+  <a href="{{ url_for('dashboard') }}" {% if request.endpoint in ('dashboard', 'run_detail') %}aria-current="page"{% endif %}>Запуски</a>
+  <a href="{{ url_for('results') }}" {% if request.endpoint == 'results' %}aria-current="page"{% endif %}>Результаты</a>
+  <a href="{{ url_for('index') }}" target="_blank">Сайт ↗</a>
+  <form method="post" action="{{ url_for('logout') }}" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <button class="linklike">Выйти</button>
+  </form>
+{% endblock %}
+{% block footer %}<p>Панель управления ботом · {{ config.TZ }}{% if config.DEMO_MODE %} · <b>демо-режим</b>{% endif %}</p>{% endblock %}

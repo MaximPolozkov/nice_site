@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Архив — {{ config.SITE_TITLE }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Архив подборок</h1>
+</section>
+{% if grouped %}
+  <section class="archive">
+    {% for date, rows in grouped.items() %}
+      <div class="card archive-week">
+        <h2>{{ date|dtru }}</h2>
+        <ol>
+          {% for r in rows %}<li><span>{{ r.niche }}</span><b>{{ r.score }}</b></li>{% endfor %}
+        </ol>
+      </div>
+    {% endfor %}
+  </section>
+{% else %}
+  <section class="card empty"><p class="muted">Подборок пока нет.</p></section>
+{% endif %}
+{% endblock %}

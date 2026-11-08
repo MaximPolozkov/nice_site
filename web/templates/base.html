@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ config.SITE_TITLE }}{% endblock %}</title>
+  <meta name="description" content="Перспективные ниши для агентских сделок: спрос по Яндекс Вордстату, средний чек, комиссия и сезонность.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231f6f4a'/><path d='M8 22l6-7 4 4 6-9' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+</head>
+<body class="{% block body_class %}public{% endblock %}">
+  <header class="topbar">
+    <div class="wrap topbar-in">
+      <a class="brand" href="{{ url_for('index') }}">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M7 22l6-7 4 4 8-10" /></svg></span>
+        {{ config.SITE_TITLE }}
+      </a>
+      <nav class="nav">
+        {% block nav %}
+          <a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}aria-current="page"{% endif %}>Эта неделя</a>
+          <a href="{{ url_for('archive') }}" {% if request.endpoint == 'archive' %}aria-current="page"{% endif %}>Архив</a>
+          {% if config.VK_COMMUNITY_URL %}<a class="nav-cta" href="{{ config.VK_COMMUNITY_URL }}" rel="noopener" target="_blank">Сообщество VK</a>{% endif %}
+        {% endblock %}
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}<div class="flash flash-{{ cat }}" role="status">{{ msg }}</div>{% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer wrap">
+    {% block footer %}
+    <p>Спрос — официальный API Яндекс Вордстата по всей России. Чек и комиссия — оценка по открытым источникам. Это аналитика, а не гарантия дохода.</p>
+    {% endblock %}
+  </footer>
+</body>
+</html>

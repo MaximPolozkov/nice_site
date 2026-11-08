@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">Агентские сделки · вся Россия</p>
+  <h1>Ниши недели</h1>
+  {% if date %}
+    <p class="lead">Подборка от {{ date|dtru }}. Ниши, где можно брать комиссию за клиента: реальный спрос, высокий чек и подходящий сезон.</p>
+  {% endif %}
+</section>
+
+{% if items %}
+  {% if demo %}<div class="flash flash-error demo-banner">Это пример работы сайта: данные выдуманные. Настоящая подборка появится после подключения ключей.</div>{% endif %}
+  <section class="grid">
+    {% for n in items %}{% set rank = loop.index %}{% include "_niche_card.html" %}{% endfor %}
+  </section>
+
+  <section class="card how">
+    <h2>Как считается оценка</h2>
+    <ul class="weights">
+      <li><b>30%</b> комиссия с одной сделки</li>
+      <li><b>25%</b> спрос по Яндекс Вордстату</li>
+      <li><b>15%</b> рост год к году</li>
+      <li><b>15%</b> сезон: выше, если пик через 1–3 месяца</li>
+      <li><b>15%</b> конкуренция</li>
+    </ul>
+    <p class="muted">Прежде чем вкладываться, проверьте нишу пробным объявлением: неделя просмотров и обращений скажет больше любой оценки.</p>
+  </section>
+{% else %}
+  <section class="card empty">
+    <h2>Скоро здесь появится первая подборка</h2>
+    <p class="muted">Бот публикует ниши раз в неделю.</p>
+  </section>
+{% endif %}
+{% endblock %}

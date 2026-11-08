@@ -1,0 +1,31 @@
+{# Карточка ниши. Ожидает переменные n (строка forecasts) и rank. #}
+{% set cmin = n.check_min * n.commission_pct / 100 %}
+{% set cmax = n.check_max * n.commission_pct / 100 %}
+<article class="card niche">
+  <div class="niche-head">
+    <span class="rank">{{ rank }}</span>
+    <div class="niche-title">
+      <h2>{{ n.niche }}</h2>
+      {% if n.category %}<span class="tag">{{ n.category }}</span>{% endif %}
+    </div>
+    <div class="score" style="--s: {{ n.score }}" aria-label="Оценка {{ n.score }} из 10">
+      <span>{{ n.score }}</span><small>/10</small>
+    </div>
+  </div>
+
+  <div class="commission">
+    <span class="label">Комиссия с одной сделки</span>
+    <strong>{{ rub(cmin) }} – {{ rub(cmax) }}</strong>
+    <span class="muted">{{ n.commission_pct|round(1)|replace('.0','') }}% от чека {{ rub(n.check_min) }} – {{ rub(n.check_max) }}</span>
+  </div>
+
+  <dl class="metrics">
+    <div><dt>Спрос в месяц</dt><dd>~{{ num(n.volume) }}<span class="muted"> «{{ n.phrase }}»</span></dd></div>
+    <div><dt>К прошлому году</dt>
+      <dd>{% if n.yoy_pct is none %}<span class="muted">нет данных</span>
+          {% else %}<span class="{{ 'up' if n.yoy_pct >= 0 else 'down' }}">{{ '%+.0f'|format(n.yoy_pct) }}%</span>{% endif %}</dd></div>
+    <div><dt>Конкуренция</dt><dd>{{ COMPETITION_RU[n.competition] }}</dd></div>
+    <div><dt>Сезон</dt><dd>{{ n.season }}</dd></div>
+  </dl>
+  {% if n.who_pays %}<p class="who"><span class="label">Кто платит:</span> {{ n.who_pays }}</p>{% endif %}
+</article>

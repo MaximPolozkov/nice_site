@@ -71,6 +71,10 @@ def connect() -> sqlite3.Connection:
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA journal_mode=WAL")      # сайт и worker пишут одновременно
     con.executescript(SCHEMA)
+    cols = {r["name"] for r in con.execute("PRAGMA table_info(forecasts)")}
+    if "volume_unit" not in cols:                # миграция для баз прошлых версий
+        con.execute("ALTER TABLE forecasts ADD COLUMN volume_unit TEXT DEFAULT 'запросов'")
+        con.commit()
     return con
 
 
@@ -139,11 +143,11 @@ def save_forecast(con, run_id: int, n, season: str, in_top: bool, published: boo
     con.execute(
         """INSERT INTO forecasts (run_id, run_date, niche, category, phrase, who_pays, volume, yoy_pct,
            season, check_min, check_max, commission_pct, competition, confidence, note, score, parts,
-           in_top, published, public) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           in_top, published, public, volume_unit) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (run_id, dt.date.today().isoformat(), n.niche, n.category, n.phrase, n.who_pays, n.volume,
          n.yoy_pct, season, n.check_min, n.check_max, n.commission_pct, n.competition, n.confidence,
          n.note, n.total, json.dumps(n.parts, ensure_ascii=False), int(in_top), int(published),
-         int(in_top)))
+         int(in_top), n.unit))
     con.commit()
 
 

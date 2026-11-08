@@ -15,7 +15,7 @@ from flask import (Flask, abort, flash, g, redirect, render_template, request,
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from bot import config, engine, scheduling, storage
-from bot.engine import COMPETITION_RU, num, rub
+from bot.engine import COMPETITION_RU, demand_source, num, rub
 from bot.llm import llm_configured
 
 log = logging.getLogger("web")
@@ -164,9 +164,10 @@ def healthz():
 # --- панель ---
 def key_status() -> list[tuple[str, bool, str]]:
     return [
-        ("Вордстат" + (" (Yandex Cloud)" if config.WORDSTAT_API_KEY and config.WORDSTAT_FOLDER_ID
-                        else " (старый API)" if config.WORDSTAT_TOKEN else ""),
-         config.WORDSTAT_CONFIGURED, "WORDSTAT_API_KEY, WORDSTAT_FOLDER_ID"),
+        ("Спрос: " + ("Вордстат" if demand_source(False) == "wordstat"
+                      else "VK, бесплатно (Вордстат не подключён)"),
+         config.WORDSTAT_CONFIGURED or bool(config.VK_USER_TOKEN or config.VK_SERVICE_TOKEN),
+         "VK_USER_TOKEN или WORDSTAT_API_KEY"),
         ((f"Нейросеть ({config.LLM_PROVIDER})" if llm_configured()
           else "Нейросеть — не подключена, работает каталог ниш"),
          llm_configured(), "необязательно: LLM_PROVIDER, LLM_API_KEY"),

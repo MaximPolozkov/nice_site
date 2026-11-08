@@ -7,6 +7,8 @@ import logging
 from . import config, storage, vk
 from .llm import make_llm
 from .scoring import MONTHS_RU, NicheScore, analyze_dynamics, score, season_text
+from .catalog import months_to_peak
+from .vkdemand import VKDemand
 from .wordstat import make_client
 
 log = logging.getLogger("niche_bot")
@@ -23,6 +25,13 @@ def num(x: float | None) -> str:
     return f"{int(x or 0):,}".replace(",", " ")
 
 
+def unit_of(n) -> str:
+    try:
+        return n["volume_unit"] or "запросов"
+    except (KeyError, IndexError):
+        return "запросов"
+
+
 def build_post(top: list, date: dt.date | None = None) -> str:
     """top — строки forecasts из базы (или объекты с теми же полями)."""
     date = date or dt.date.today()
@@ -33,7 +42,7 @@ def build_post(top: list, date: dt.date | None = None) -> str:
         cmax = n["check_max"] * n["commission_pct"] / 100
         lines += [
             f"{i}. {n['niche']} — {n['score']}/10",
-            f"Спрос: ~{num(n['volume'])} запросов/мес «{n['phrase']}», {yoy}",
+            f"Спрос: ~{num(n['volume'])} {unit_of(n)}/мес «{n['phrase']}», {yoy}",
             f"Чек: {rub(n['check_min'])}–{rub(n['check_max'])}; комиссия {n['commission_pct']:g}% = "
             f"{rub(cmin)}–{rub(cmax)} с одной сделки",
             f"Конкуренция: {COMPETITION_RU[n['competition']]}",
@@ -41,7 +50,8 @@ def build_post(top: list, date: dt.date | None = None) -> str:
             f"Кто платит: {n['who_pays']}",
             "",
         ]
-    lines.append("Цифры спроса — Яндекс Вордстат, чек и комиссия — оценка по открытым "
+    source = "VK (число постов)" if top and unit_of(top[0]) != "запросов" else "Яндекс Вордстат"
+    lines.append(f"Цифры спроса — {source}, чек и комиссия — оценка по открытым "
                  "источникам, не гарантия дохода. Перед входом проверьте нишу пробным объявлением.")
     return "\n".join(lines)
 
@@ -71,6 +81,15 @@ def publish_text(text: str, say=log.info) -> bool:
     return sent
 
 
+def demand_source(demo: bool) -> str:
+    """wordstat или vk: откуда берём спрос."""
+    if demo:
+        return "wordstat"
+    if config.DEMAND_SOURCE in ("wordstat", "vk"):
+        return config.DEMAND_SOURCE
+    return "wordstat" if config.WORDSTAT_CONFIGURED else "vk"
+
+
 def run(trigger: str = "manual", publish: bool = True, demo: bool | None = None) -> int:
     demo = config.DEMO_MODE if demo is None else demo
     con = storage.connect()
@@ -82,8 +101,13 @@ def run(trigger: str = "manual", publish: bool = True, demo: bool | None = None)
 
     try:
         say("Демо-режим: данные выдуманные" if demo else "Боевой режим")
-        ws, ai = make_client(demo), make_llm(demo)
+        source = demand_source(demo)
+        ws = make_client(demo) if source == "wordstat" else VKDemand()
+        ai = make_llm(demo)
         say(f"Подбор ниш: {getattr(ai, 'mode', '—')}")
+        say("Спрос: " + ("Яндекс Вордстат" if source == "wordstat"
+                         else "VK — число постов за 30 дней (бесплатно), сезон — из каталога"))
+        src_name = "Вордстат" if source == "wordstat" else "VK"
         month = dt.date.today().month
         exclude = storage.recently_published(con, config.REPEAT_COOLDOWN_WEEKS)
 
@@ -106,12 +130,16 @@ def run(trigger: str = "manual", publish: bool = True, demo: bool | None = None)
                 continue
             try:
                 volume = ws.monthly_volume(c["phrase"])
-                yoy, peaks, to_peak = analyze_dynamics(ws.monthly_dynamics(c["phrase"]), month)
+                if source == "wordstat":
+                    yoy, peaks, to_peak = analyze_dynamics(ws.monthly_dynamics(c["phrase"]), month)
+                else:
+                    yoy = ws.yoy_pct(c["phrase"])
+                    peaks, to_peak = months_to_peak(c["niche"], month)
             except Exception as ex:
-                say(f"Вордстат, «{c['phrase']}»: {ex}")
+                say(f"{src_name}, «{c['phrase']}»: {ex}")
                 ws_fail += 1
                 if ws_fail >= 3 and not results:   # три ошибки подряд с начала — дальше смысла нет
-                    raise RuntimeError(f"Вордстат недоступен, прогон остановлен. Причина: {ex}") from ex
+                    raise RuntimeError(f"{src_name} недоступен, прогон остановлен. Причина: {ex}") from ex
                 continue
             note = e.get("note", "")
             related = ws.related(c["phrase"])
@@ -124,12 +152,18 @@ def run(trigger: str = "manual", publish: bool = True, demo: bool | None = None)
                 check_min=int(e.get("avg_check_min") or 0), check_max=int(e.get("avg_check_max") or 0),
                 commission_pct=float(e.get("commission_pct") or config.DEFAULT_COMMISSION_PCT),
                 competition=max(1, min(5, int(e.get("competition") or 3))),
-                confidence=float(e.get("confidence") or 0.5), note=note)))
+                confidence=float(e.get("confidence") or 0.5), note=note,
+                **({} if source == "wordstat" else {"unit": VKDemand.unit, "demand_range": (10, 10_000)}))))
 
         if not results:
             raise RuntimeError("Ни одна ниша не оценена — смотрите сообщения выше")
 
         results.sort(key=lambda n: n.total, reverse=True)
+        if hasattr(ai, "refine"):
+            refined = ai.refine(results)
+            if refined:
+                say(f"Уточнил чек по выдаче Яндекса: {refined} ниш")
+                results = sorted((score(n) for n in results), key=lambda n: n.total, reverse=True)
         top = [n for n in results
                if (n.commission_min + n.commission_max) / 2 >= config.MIN_COMMISSION_RUB][:config.TOP_N]
         if not top:

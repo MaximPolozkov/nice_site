@@ -98,21 +98,31 @@ class CatalogLLM:
         return [d for d in as_dicts() if d["niche"] not in exclude]
 
     def economics(self, niches: list[dict]) -> dict[str, dict]:
-        out = {}
-        for n in niches:
-            lo, hi = n["avg_check_min"], n["avg_check_max"]
-            e = {"avg_check_min": lo, "avg_check_max": hi, "commission_pct": n["commission_pct"],
-                 "competition": n["competition"], "confidence": 0.45,
-                 "note": "чек — типичный диапазон из каталога"}
-            found = serp_price_range(n["phrase"], lo, hi) if config.SERPAPI_KEY else None
-            if found:
-                # смешиваем каталог и выдачу пополам, чтобы один странный сниппет не перекосил оценку
-                e["avg_check_min"] = int((lo + found[0]) / 2)
-                e["avg_check_max"] = int((hi + max(found[1], found[0])) / 2)
-                e["confidence"] = 0.6
-                e["note"] = "чек — каталог, уточнённый по свежей выдаче Яндекса"
-            out[n["niche"]] = e
-        return out
+        return {n["niche"]: {"avg_check_min": n["avg_check_min"], "avg_check_max": n["avg_check_max"],
+                             "commission_pct": n["commission_pct"], "competition": n["competition"],
+                             "confidence": 0.45, "note": "чек — типичный диапазон из каталога"}
+                for n in niches}
+
+    def refine(self, scored: list) -> int:
+        """Уточняет чек у лучших ниш по выдаче Яндекса через SerpAPI. Возвращает, сколько уточнено.
+
+        Только для первых PRICE_REFRESH_TOP — чтобы укладываться в бесплатный лимит SerpAPI.
+        """
+        if not config.SERPAPI_KEY:
+            return 0
+        done = 0
+        for n in scored[:config.PRICE_REFRESH_TOP]:
+            found = serp_price_range(n.phrase, n.check_min, n.check_max)
+            if not found:
+                continue
+            # смешиваем каталог и выдачу пополам, чтобы один странный сниппет не перекосил оценку
+            n.check_min = int((n.check_min + found[0]) / 2)
+            n.check_max = int((n.check_max + max(found)) / 2)
+            n.confidence = 0.6
+            n.note = n.note.replace("чек — типичный диапазон из каталога",
+                                    "чек — каталог, уточнённый по выдаче Яндекса")
+            done += 1
+        return done
 
 
 class LLM:

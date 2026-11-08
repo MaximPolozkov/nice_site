@@ -55,6 +55,8 @@ WORDSTAT_FOLDER_ID = env("WORDSTAT_FOLDER_ID", "", "YC_FOLDER_ID")
 # Старый доступ api.wordstat.yandex.net по OAuth-токену (если ещё работает)
 WORDSTAT_TOKEN = env("WORDSTAT_TOKEN")
 WORDSTAT_CONFIGURED = bool((WORDSTAT_API_KEY and WORDSTAT_FOLDER_ID) or WORDSTAT_TOKEN)
+# Источник спроса: auto — Вордстат, если настроен, иначе бесплатно через VK; wordstat; vk
+DEMAND_SOURCE = env("DEMAND_SOURCE", "auto").lower()
 WORDSTAT_REGIONS = _ids(env("WORDSTAT_REGIONS"))
 # Пустой список = вся Россия (все регионы).
 
@@ -70,11 +72,15 @@ LLM_WEB_SEARCH = flag("LLM_WEB_SEARCH", True)
 LLM_WEB_SEARCH_TOOL = env("LLM_WEB_SEARCH_TOOL", "web_search_20250305")
 # SerpAPI (ключ от «Кодверка»): поиск цен, если у нейросети нет своего веб-поиска
 SERPAPI_KEY = env("SERPAPI_KEY")
+# Сколько лучших ниш уточнять через SerpAPI за прогон: 10 × 4 недели = 40 в месяц,
+# укладывается в бесплатные 100 запросов SerpAPI
+PRICE_REFRESH_TOP = int(env("PRICE_REFRESH_TOP", "10"))
 
 # --- VK ---
 VK_GROUP_ID = env("VK_GROUP_ID")                 # число без минуса, например 123456789
 VK_GROUP_TOKEN = env("VK_GROUP_TOKEN")           # ключ сообщества (сообщения)
-VK_USER_TOKEN = env("VK_USER_TOKEN")             # ключ админа (VK ID) — для поста на стену
+VK_USER_TOKEN = env("VK_USER_TOKEN")             # ключ пользователя: бесплатная оценка спроса, пост на стену
+VK_SERVICE_TOKEN = env("VK_SERVICE_TOKEN")       # сервисный ключ приложения VK — тоже подходит для спроса
 # Кому слать отчёт: ID админов или peer_id беседы (в «Кодверке» это VK_NOTIFY_PEER_IDS)
 VK_ADMIN_PEER_IDS = _ids(env("VK_ADMIN_PEER_IDS", "", "VK_NOTIFY_PEER_IDS"))
 # PUBLISH_MODE: wall — пост на стену; message — отчёт админам в личку от сообщества;

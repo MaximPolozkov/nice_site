@@ -20,7 +20,7 @@
   </div>
 
   <dl class="metrics">
-    <div><dt>Спрос в месяц</dt><dd>~{{ num(n.volume) }}<span class="muted"> «{{ n.phrase }}»</span></dd></div>
+    <div><dt>Спрос в месяц</dt><dd>~{{ num(n.volume) }}{% if n.volume_unit and n.volume_unit != 'запросов' %} {{ n.volume_unit }}{% endif %}<span class="muted"> «{{ n.phrase }}»</span></dd></div>
     <div><dt>К прошлому году</dt>
       <dd>{% if n.yoy_pct is none %}<span class="muted">нет данных</span>
           {% else %}<span class="{{ 'up' if n.yoy_pct >= 0 else 'down' }}">{{ '%+.0f'|format(n.yoy_pct) }}%</span>{% endif %}</dd></div>

@@ -26,7 +26,7 @@
         <td><b>{{ n.niche }}</b>{% if n.in_top %} <span class="tag">топ</span>{% endif %}
           <div class="muted small">«{{ n.phrase }}» · {{ n.season }}{% if n.note %} · {{ n.note }}{% endif %}</div></td>
         <td><b>{{ n.score }}</b></td>
-        <td>{{ num(n.volume) }}</td>
+        <td>{{ num(n.volume) }}{% if n.volume_unit and n.volume_unit != 'запросов' %}<div class="muted small">{{ n.volume_unit }}</div>{% endif %}</td>
         <td>{% if n.yoy_pct is none %}—{% else %}<span class="{{ 'up' if n.yoy_pct >= 0 else 'down' }}">{{ '%+.0f'|format(n.yoy_pct) }}%</span>{% endif %}</td>
         <td class="nowrap">{{ rub(n.check_min * n.commission_pct / 100) }} – {{ rub(n.check_max * n.commission_pct / 100) }}</td>
         {% for k in ['commission', 'demand', 'trend', 'season', 'competition'] %}

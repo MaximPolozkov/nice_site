@@ -37,6 +37,8 @@ class NicheScore:
     note: str
     parts: dict = field(default_factory=dict)
     total: float = 0.0
+    unit: str = "запросов"
+    demand_range: tuple[int, int] = (1_000, 1_000_000)
 
     @property
     def commission_min(self) -> int:
@@ -72,7 +74,7 @@ def analyze_dynamics(rows: list[tuple[str, int]], today_month: int):
 
 def score(n: NicheScore) -> NicheScore:
     p = {}
-    p["demand"] = _log_scale(n.volume, 1_000, 1_000_000)                 # 1 тыс → 0, 1 млн → 10
+    p["demand"] = _log_scale(n.volume, *n.demand_range)   # Вордстат: 1 тыс → 0, 1 млн → 10
     p["commission"] = _log_scale((n.commission_min + n.commission_max) / 2, 5_000, 200_000)
     p["trend"] = 5.0 if n.yoy_pct is None else _clamp(5 + n.yoy_pct / 8)  # +40% → 10, −40% → 0
     if n.months_to_peak is None:
